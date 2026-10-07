@@ -57,7 +57,16 @@ export function formatTimestamp(iso: string | null | undefined, timeZone = "Amer
   if (!iso) return MISSING;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return MISSING;
-  return new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short", timeZone, timeZoneName: "short" }).format(d);
+  // Note: dateStyle/timeStyle cannot be combined with timeZoneName (throws on newer runtimes).
+  return new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone,
+    timeZoneName: "short",
+  }).format(d);
 }
 
 export type Staleness = "fresh" | "stale" | "critical" | "unknown";
