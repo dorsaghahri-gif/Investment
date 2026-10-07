@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
 import { requireOwner } from "@/lib/auth/dal";
 import { getDataFreshness, type FreshnessStatus } from "@/lib/ops/freshness";
-import { getProviderConfigView, getRecentJobRuns, getRecentProviderFailures, getSchemaWarnings } from "@/lib/ops/health";
+import { getProviderConfigView, getRecentJobRuns, getRecentProviderFailures, getResearchCoverage, getSchemaWarnings } from "@/lib/ops/health";
 import { PROVIDER_LABEL } from "@/lib/domain/provenance";
 import { formatAge, formatTimestamp } from "@/lib/format";
 import { PageHeader } from "@/components/layout/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { RunRefreshButton } from "./run-button";
+import { RunRefreshButton, RunResearchButton } from "./run-button";
 
 export const metadata: Metadata = { title: "Data Health" };
+// manual research refresh runs as a server action on this page
+export const maxDuration = 300;
 
 const STATUS_BADGE: Record<FreshnessStatus, { label: string; variant: "positive" | "warning" | "negative" | "secondary" }> = {
   healthy: { label: "HEALTHY", variant: "positive" },
@@ -27,12 +29,13 @@ const JOB_BADGE = {
 } as const;
 
 export default async function DataHealthPage() {
-  await requireOwner();
-  const [freshness, runs, failures, warnings] = await Promise.all([
+  const me = await requireOwner();
+  const [freshness, runs, failures, warnings, research] = await Promise.all([
     getDataFreshness(),
     getRecentJobRuns(20),
     getRecentProviderFailures(50),
     getSchemaWarnings(),
+    getResearchCoverage(me.id),
   ]);
   const cfg = getProviderConfigView();
   const lastRefresh = runs.find((r) => r.job_name === "refresh-prices" && r.finished_at);
@@ -62,6 +65,50 @@ export default async function DataHealthPage() {
           </Card>
         ))}
       </div>
+
+      <Card className="mb-4">
+        <CardHeader className="flex-row items-center justify-between gap-3">
+          <CardTitle>Research data</CardTitle>
+          <RunResearchButton />
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
+            <div>
+              <div className="text-muted-foreground">Universe</div>
+              <div className="text-base font-semibold num">{research.universeSize}</div>
+              <div className="text-[11px] text-muted-foreground">
+                {research.universeSource === "sp500" ? "S&P 500 members" : research.universeSource === "core100" ? "~100 large US companies (index list not in data plan)" : "not synced yet"}
+              </div>
+            </div>
+            <div>
+              <div className="text-muted-foreground">Company profiles</div>
+              <div className="text-base font-semibold num">{research.withProfile} / {research.universeSize}</div>
+            </div>
+            <div>
+              <div className="text-muted-foreground">Financial statements</div>
+              <div className="text-base font-semibold num">{research.withFinancials} / {research.universeSize}</div>
+              <div className="text-[11px] text-muted-foreground">Annual, up to 6 years; refreshed monthly</div>
+            </div>
+            <div>
+              <div className="text-muted-foreground">Scored (latest run)</div>
+              <div className="text-base font-semibold num">{research.scoredCount}</div>
+              <div className="text-[11px] text-muted-foreground">{research.latestScoreDate ?? "no scores yet"}</div>
+            </div>
+          </div>
+          {research.capabilities.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+              {research.capabilities.filter((c) => c.capability !== "universe_sync").map((c) => (
+                <Badge key={c.capability} variant={c.available ? "positive" : "secondary"} title={`${c.detail ?? ""} (checked ${formatTimestamp(c.checked_at)})`}>
+                  {c.capability.replaceAll("_", " ")}: {c.available ? "available" : "not in data plan"}
+                </Badge>
+              ))}
+            </div>
+          )}
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            Research data refreshes automatically every day at 10:00 UTC. The first full load takes a few runs; each click works for up to ~3 minutes and picks up where the last one stopped.
+          </p>
+        </CardContent>
+      </Card>
 
       <div className="mb-4 grid gap-4 lg:grid-cols-2">
         <Card>

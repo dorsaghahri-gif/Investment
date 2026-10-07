@@ -72,6 +72,13 @@ export interface SymbolSearchResult {
   currency: string | null;
 }
 
+export interface IndexConstituent {
+  symbol: string;
+  name: string | null;
+  sector: string | null;
+  industry: string | null;
+}
+
 export interface EarningsEvent {
   symbol: string;
   date: string;

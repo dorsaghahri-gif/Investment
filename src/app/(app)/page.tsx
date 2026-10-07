@@ -4,6 +4,8 @@ import { Info } from "lucide-react";
 import { requireUser } from "@/lib/auth/dal";
 import { getDashboardData } from "@/lib/analytics/dashboard";
 import { getDataFreshness } from "@/lib/ops/freshness";
+import { listRecommendations } from "@/lib/research/queries";
+import { RatingBadge } from "@/components/research/rating";
 import type { Metric } from "@/lib/analytics/portfolio";
 import { formatMoney, formatNumber, formatPct, formatSignedMoney } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,10 +52,15 @@ function Planned({ title, phase, text }: { title: string; phase: number; text: s
 
 export default async function DashboardPage() {
   const user = await requireUser();
-  const [{ live, holdings, analytics: a, snapshots, closes, marketDate }, freshness] = await Promise.all([
+  const [{ live, holdings, analytics: a, snapshots, closes, marketDate }, freshness, recs] = await Promise.all([
     getDashboardData(user.id),
     getDataFreshness().catch(() => []),
+    listRecommendations(user.id).catch(() => []),
   ]);
+  const heldRecs = recs.filter((r) => r.portfolioImpact.held);
+  const needsAttention = heldRecs.filter((r) => r.rating === "reduce" || r.rating === "avoid");
+  const addable = heldRecs.filter((r) => r.rating === "buy" || r.rating === "strong_buy");
+  const newIdeas = recs.filter((r) => !r.portfolioImpact.held && (r.rating === "buy" || r.rating === "strong_buy")).length;
   const quotes = freshness.find((f) => f.dataset === "quotes");
 
   if (holdings.length === 0 && live.cash === 0) {
@@ -113,6 +120,31 @@ export default async function DashboardPage() {
         <Kpi label="S&P 500 YTD (SPY)" text={formatPct(a?.benchmarks.SPY.ytd.value ?? null, { signed: true })} tone={toneOf(a?.benchmarks.SPY.ytd.value)} basis="market" note={a?.benchmarks.SPY.ytd.note} />
         <Kpi label="Excess vs SPY" text={formatPct(a?.performance.excessVsSpyYtd.value ?? null, { signed: true })} tone={toneOf(a?.performance.excessVsSpyYtd.value)} basis="actual" note="Portfolio YTD time-weighted return minus SPY YTD price return" />
       </div>
+
+      {heldRecs.length > 0 && (
+        <Card className="mb-4">
+          <CardContent className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-3 text-xs">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Holdings review · {heldRecs[0].snapshotDate}</span>
+            <span>
+              {needsAttention.length === 0 ? <span className="text-muted-foreground">No holding rated Reduce.</span> : needsAttention.map((r) => (
+                <Link key={r.companyId} href={`/research/${encodeURIComponent(r.symbol)}`} className="mr-2 inline-flex items-center gap-1 hover:underline">{r.symbol} <RatingBadge rating={r.rating} held /></Link>
+              ))}
+            </span>
+            {addable.length > 0 && (
+              <span>
+                {addable.map((r) => (
+                  <Link key={r.companyId} href={`/research/${encodeURIComponent(r.symbol)}`} className="mr-2 inline-flex items-center gap-1 hover:underline">{r.symbol} <RatingBadge rating={r.rating} held /></Link>
+                ))}
+              </span>
+            )}
+            <span className="ml-auto flex gap-3">
+              <Link href="/research" className="underline">Review all holdings</Link>
+              <Link href="/opportunities" className="underline">{newIdeas} new ideas</Link>
+              <Link href="/planner" className="underline">Plan new money</Link>
+            </span>
+          </CardContent>
+        </Card>
+      )}
 
       {!a ? (
         <Card className="mb-4"><CardContent className="pt-4 text-sm text-muted-foreground">Analytics appear after the first price refresh stores benchmark history (SPY/QQQ). Owners can run it from Settings → Data Health.</CardContent></Card>

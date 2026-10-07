@@ -100,3 +100,45 @@ export function getProviderConfigView(): ProviderConfigView {
     return { categories: [], credentials, error: e instanceof Error ? e.message : String(e) };
   }
 }
+
+export interface ResearchCoverage {
+  universeSize: number;
+  universeSource: string | null;
+  withProfile: number;
+  withFinancials: number;
+  latestScoreDate: string | null;
+  scoredCount: number;
+  capabilities: { capability: string; available: boolean; detail: string | null; checked_at: string }[];
+}
+
+/** Owner view of the research backfill: how much of the universe has data and scores. */
+export async function getResearchCoverage(userId: string): Promise<ResearchCoverage> {
+  const db = await createSupabaseServerClient();
+  const count = async (q: PromiseLike<{ count: number | null; error: { message: string } | null }>) => {
+    const { count: c, error } = await q;
+    if (error) throw new Error(error.message);
+    return c ?? 0;
+  };
+  const base = () => db.from("companies").select("id", { count: "exact", head: true }).eq("in_universe", true);
+  const [universeSize, withProfile, withFinancials, tagRow, latest, caps] = await Promise.all([
+    count(base()),
+    count(base().not("fetched_at", "is", null)),
+    count(base().not("fundamentals_fetched_at", "is", null)),
+    db.from("companies").select("universe_tags").eq("in_universe", true).limit(1).maybeSingle(),
+    db.from("investment_scores").select("snapshot_date").eq("user_id", userId).order("snapshot_date", { ascending: false }).limit(1).maybeSingle(),
+    db.from("provider_capabilities").select("capability, available, detail, checked_at").order("capability"),
+  ]);
+  const latestScoreDate = (latest.data?.snapshot_date as string) ?? null;
+  const scoredCount = latestScoreDate
+    ? await count(db.from("investment_scores").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("snapshot_date", latestScoreDate))
+    : 0;
+  return {
+    universeSize,
+    universeSource: ((tagRow.data?.universe_tags as string[] | undefined) ?? [])[0] ?? null,
+    withProfile,
+    withFinancials,
+    latestScoreDate,
+    scoredCount,
+    capabilities: (caps.data ?? []) as ResearchCoverage["capabilities"],
+  };
+}

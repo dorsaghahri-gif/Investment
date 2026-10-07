@@ -22,6 +22,7 @@ import type {
   RatingChange,
   SplitEvent,
   SymbolSearchResult,
+  IndexConstituent,
 } from "@/lib/domain/research";
 
 export type ProviderCategory =
@@ -80,6 +81,8 @@ export interface CompanyInfoProvider extends ProviderBase {
   getPeers(symbol: string): Promise<Sourced<string[]>>;
   getExecutives(symbol: string): Promise<Sourced<Executive[]>>;
   searchSymbols(query: string, limit?: number): Promise<SymbolSearchResult[]>;
+  /** Current index members (e.g. S&P 500). Plan-dependent; throws plan_restricted when unavailable. */
+  getIndexConstituents(index: "sp500"): Promise<Sourced<IndexConstituent[]>>;
 }
 
 export interface EventsProvider extends ProviderBase {

@@ -230,6 +230,12 @@ export function createFmpProvider(opts: FmpOptions): ProviderBundle {
       const rows = await get("company_info", "search-symbol", { query: q, limit });
       return rows.map(M.mapSearchResult).filter((x): x is NonNullable<typeof x> => x !== null);
     },
+    async getIndexConstituents(index) {
+      const path = { sp500: "sp500-constituent" }[index];
+      const rows = await get("company_info", path, {}, ["symbol"]);
+      const list = rows.map(M.mapConstituent).filter((x): x is NonNullable<typeof x> => x !== null);
+      return sourced(list, prov(`/stable/${path}`, "reported", today()));
+    },
   };
 
   // ── Events ────────────────────────────────────────────────────────

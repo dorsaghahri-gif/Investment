@@ -215,6 +215,12 @@ export function createMockProvider(now: () => Date = () => new Date()): Provider
           .filter(([k, v]) => k.includes(q) || v.name.toUpperCase().includes(q))
           .map(([k, v]) => ({ symbol: k, name: v.name, exchange: "MOCK", currency: "USD" }));
       },
+      async getIndexConstituents() {
+        const list = Object.entries(UNIVERSE)
+          .filter(([, v]) => !v.type)
+          .map(([k, v]) => ({ symbol: k, name: v.name, sector: null, industry: null }));
+        return sourced(list, prov("index-constituents", "reported", today()));
+      },
     },
     events: {
       id: "mock",

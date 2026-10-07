@@ -27,6 +27,7 @@ import type {
   SecurityType,
   SplitEvent,
   SymbolSearchResult,
+  IndexConstituent,
 } from "@/lib/domain/research";
 import {
   bool,
@@ -528,4 +529,11 @@ export function latestReportedQuarter(today: Date): { year: number; quarter: num
     year -= 1;
   }
   return { year, quarter };
+}
+
+// ── Index constituents ──────────────────────────────────────────────
+export function mapConstituent(r: Raw): IndexConstituent | null {
+  const symbol = str(r.symbol);
+  if (!symbol) return null;
+  return { symbol: normalizeSymbol(symbol), name: str(r.name), sector: str(r.sector), industry: str(r.subSector) ?? str(r.industry) };
 }
