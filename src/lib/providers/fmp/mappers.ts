@@ -73,7 +73,7 @@ export function mapQuote(r: Raw): Quote | null {
     open: num(r.open),
     dayHigh: num(r.dayHigh),
     dayLow: num(r.dayLow),
-    volume: num(r.volume),
+    volume: int(r.volume), // DB column is bigint; some feeds send fractional volumes
     marketCap: num(r.marketCap),
     yearHigh: num(r.yearHigh),
     yearLow: num(r.yearLow),
@@ -96,7 +96,7 @@ export function mapBar(symbol: string, r: Raw): PriceBar | null {
     low: num(r.low),
     close,
     adjClose: pickNum(r, "adjClose"),
-    volume: num(r.volume),
+    volume: int(r.volume), // DB column is bigint; some feeds send fractional volumes
     vwap: num(r.vwap),
   };
 }
